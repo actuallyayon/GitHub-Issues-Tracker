@@ -6,6 +6,81 @@
     <title>Dashboard</title>
     <link rel="icon" type="image/png" href="assets/github-logo.png">
      <script src="https://cdn.tailwindcss.com"></script>
+     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
+    .spinner {
+      width: 28px; height: 28px;
+      border: 3px solid #e5e7eb;
+      border-top-color: #6d28d9;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .tab {
+      padding: 7px 18px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1.5px solid #e5e7eb;
+      background: white;
+      color: #374151;
+      transition: all .15s ease;
+      white-space: nowrap;
+    }
+    .tab:hover:not(.activeTab) { background: #f9fafb; }
+    .tab.activeTab { background: #6d28d9; color: white; border-color: #6d28d9; }
+    .issue-card {
+      background: white;
+      border-radius: 12px;
+      padding: 12px 14px;
+      border-top: 3px solid transparent;
+      box-shadow: 0 1px 3px rgba(0,0,0,.07);
+      cursor: pointer;
+      transition: box-shadow .2s, transform .15s;
+    }
+    .issue-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,.1); transform: translateY(-1px); }
+    .issue-card.open   { border-top-color: #22c55e; }
+    .issue-card.closed { border-top-color: #a855f7; }
+    .pill { font-size: 11px; font-weight: 700; padding: 3px 11px; border-radius: 999px; letter-spacing: .3px; white-space: nowrap; }
+    .pill-high   { background: #fee2e2; color: #dc2626; }
+    .pill-medium { background: #fef3c7; color: #d97706; }
+    .pill-low    { background: #f3f4f6; color: #6b7280; }
+    .pill-solid-high   { background: #ef4444; color: white; font-size: 12px; font-weight: 700; padding: 4px 14px; border-radius: 999px; display: inline-block; }
+    .pill-solid-medium { background: #f59e0b; color: white; font-size: 12px; font-weight: 700; padding: 4px 14px; border-radius: 999px; display: inline-block; }
+    .pill-solid-low    { background: #6b7280; color: white; font-size: 12px; font-weight: 700; padding: 4px 14px; border-radius: 999px; display: inline-block; }
+
+    .chip { font-size: 11px; font-weight: 600; padding: 4px 9px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+    .chip-bug         { background: #fee2e2; color: #dc2626; border: 1.5px solid #fca5a5; }
+    .chip-help        { background: #fef9c3; color: #a16207; border: 1.5px solid #fde68a; }
+    .chip-enhancement { background: #d1fae5; color: #059669; border: 1.5px solid #6ee7b7; }
+    .chip-docs        { background: #e0f2fe; color: #0369a1; border: 1.5px solid #7dd3fc; }
+    .chip-good        { background: #ede9fe; color: #6d28d9; border: 1.5px solid #c4b5fd; }
+    .chip-default     { background: #dbeafe; color: #2563eb; border: 1.5px solid #93c5fd; }
+    .modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.45);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-overlay.show { display: flex; }
+    .line-clamp-2 {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+    @media (max-width: 640px) {
+      .nav-right { flex-wrap: wrap; gap: 8px; }
+      .search-bar { width: 100% !important; }
+    }
+  </style>
 </head>
 <body class="min-h-screen" style="background-color: #f0f2f5;">
     <nav class="bg-white shadow-sm px-4 sm:px-8 py-3 flex flex-wrap justify-between items-center gap-3">
@@ -56,7 +131,87 @@
     <div id="issuesContainer"
       class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
     </div>
-
   </div>
+  <div id="detailModal" class="modal-overlay">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto"
+         onclick="event.stopPropagation()">
+      <div id="detailLoader" class="flex flex-col items-center justify-center py-16 gap-3">
+        <div class="spinner"></div>
+        <span class="text-sm text-gray-400">Loading issue…</span>
+      </div>
+      <div id="detailContent" class="hidden p-5 sm:p-7">
+        <h2 id="modalTitle" class="text-xl sm:text-2xl font-bold text-gray-900 mb-3 leading-snug"></h2>
+        <div class="flex items-center gap-2 flex-wrap mb-4">
+          <span id="modalStatusBadge" class="text-xs font-semibold px-3 py-1.5 rounded-full bg-green-500 text-white"></span>
+          <span class="text-gray-400 text-xs">•</span>
+          <span id="modalAuthorLine" class="text-gray-500 text-sm"></span>
+          <span class="text-gray-400 text-xs">•</span>
+          <span id="modalDateLine"   class="text-gray-500 text-sm"></span>
+        </div>
+        <div id="modalLabels" class="flex flex-wrap gap-2 mb-5"></div>
+        <p id="modalDesc" class="text-gray-600 text-sm leading-relaxed mb-6"></p>
+        <div class="bg-gray-50 rounded-xl p-4 sm:p-5 flex flex-wrap items-start gap-6 sm:gap-10 mb-6">
+          <div>
+            <p class="text-gray-400 text-sm mb-1">Assignee:</p>
+            <p id="modalAssignee" class="font-bold text-gray-900 text-sm"></p>
+          </div>
+          <div>
+            <p class="text-gray-400 text-sm mb-1">Priority:</p>
+            <span id="modalPriorityBadge" class="pill-solid-high"></span>
+          </div>
+        </div>
+        <div class="flex justify-end">
+          <button id="closeModal"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 sm:px-7 py-2.5 rounded-xl text-sm transition">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="newIssueModal" class="modal-overlay">
+    <div class="bg-white rounded-2xl w-full max-w-md shadow-xl p-5 sm:p-8 relative max-h-[90vh] overflow-y-auto"
+         onclick="event.stopPropagation()">
+
+      <button id="closeNewIssue"
+        class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl leading-none">&#10005;</button>
+
+      <h2 class="text-xl font-bold text-gray-900 mb-5">Create New Issue</h2>
+
+      <div class="space-y-3">
+        <div>
+          <label class="text-sm font-semibold text-gray-700 block mb-1">Title <span class="text-red-400">*</span></label>
+          <input id="issueTitle" type="text" placeholder="Issue title"
+            class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition" />
+        </div>
+        <div>
+          <label class="text-sm font-semibold text-gray-700 block mb-1">Description <span class="text-red-400">*</span></label>
+          <textarea id="issueDesc" rows="3" placeholder="Describe the issue…"
+            class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition resize-none"></textarea>
+        </div>
+        <div>
+          <label class="text-sm font-semibold text-gray-700 block mb-1">Priority</label>
+          <select id="issuePriority"
+            class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition bg-white">
+            <option value="high">HIGH</option>
+            <option value="medium">MEDIUM</option>
+            <option value="low">LOW</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-sm font-semibold text-gray-700 block mb-1">Labels</label>
+          <input id="issueLabels" type="text" placeholder="bug, enhancement, help wanted…"
+            class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition" />
+        </div>
+        <p id="newIssueError" class="hidden text-red-500 text-sm">Please fill in title and description.</p>
+        <button id="submitIssueBtn"
+          class="w-full py-3 text-white font-semibold rounded-lg text-sm"
+          style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)">
+          Submit Issue
+        </button>
+      </div>
+    </div>
+  </div>
+  <script src="app.js"></script>
 </body>
 </html>
